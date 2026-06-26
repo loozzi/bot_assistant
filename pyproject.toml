@@ -22,4 +22,6 @@ dependencies = [
     "pydantic-settings>=2.0",
     # Logging
     "structlog>=24.0",
+    # Scheduler
+    "apscheduler>=3.10",
 ]
