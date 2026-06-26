@@ -4,4 +4,22 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    # Telegram
+    "aiogram>=3.0",
+    # Agent framework
+    "langgraph>=0.2",
+    # LLM / AI
+    "anthropic>=0.30",
+    # Database
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    # Vector DB
+    "qdrant-client>=1.9",
+    # Cache
+    "redis>=5.0",
+    # Settings
+    "pydantic-settings>=2.0",
+    # Logging
+    "structlog>=24.0",
+]
