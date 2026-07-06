@@ -36,11 +36,13 @@ services:
     image: qdrant/qdrant:latest
     container_name: secondbrain_qdrant
     restart: unless-stopped
-    environment:
-      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    # Qdrant enables auth as soon as QDRANT__SERVICE__API_KEY is present, even if empty,
+    # so it's left unset for local dev. Set a real QDRANT_API_KEY and uncomment for prod:
+    # environment:
+    #   QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
     ports:
       - "${QDRANT_PORT:-6333}:6333"
-      - "6334:6334"  # gRPC
+      - "${QDRANT_GRPC_PORT:-6334}:6334"  # gRPC
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
