@@ -1,0 +1,30 @@
+# app/modules/insight/config.yaml
+# Declarative metadata the orchestrator uses to classify intent and route to
+# this agent. Loaded by orchestrator/registry.py at startup — do not put
+# secrets or environment-specific values here (those belong in .env).
+
+agent:
+  name: insight
+  enabled: true
+  description: >
+    Analyzes long-term patterns and trends across the user's journal and
+    finance history, surfacing insights the user did not explicitly ask
+    to compute (e.g. "you tend to overspend when stressed").
+
+routing:
+  keywords:
+    vi: [phân tích, xu hướng, thói quen, tổng kết, insight]
+    en: [insight, pattern, trend, analyze, summary, over time]
+  examples:
+    - "Phân tích xu hướng chi tiêu của tôi trong 3 tháng qua"
+    - "What patterns do you notice in my mood this month?"
+    - "Give me a summary of my habits over the last quarter"
+    - "Có mối liên hệ nào giữa tâm trạng và chi tiêu của tôi không?"
+  sticky: false
+  priority: 20
+
+memory:
+  # Insight primarily reads across other modules' memories rather than
+  # writing new raw entries; when it does persist a summary, tag it as chat.
+  source_type: chat
+  default_importance: 0.5

@@ -1,0 +1,35 @@
+# app/modules/finance/config.yaml
+# Declarative metadata the orchestrator uses to classify intent and route to
+# this agent. Loaded by orchestrator/registry.py at startup — do not put
+# secrets or environment-specific values here (those belong in .env).
+
+agent:
+  name: finance
+  enabled: true
+  description: >
+    Logs and categorizes user expenses, answers questions about spending,
+    and detects behavioral spending patterns (e.g. recurring purchases,
+    budget overruns, category trends).
+
+routing:
+  # Short capability summary + examples are passed to the LLM intent
+  # classifier as few-shot context (Phase 2). Keywords are the fallback
+  # fast-path used before/without an LLM call.
+  keywords:
+    vi: [tiêu, chi tiêu, mua, tốn, giá, hóa đơn, chi phí, ngân sách]
+    en: [spend, spent, expense, pay, paid, bought, cost, bill, budget]
+  examples:
+    - "Tôi vừa tiêu 200k cho ăn trưa"
+    - "I spent $50 on groceries today"
+    - "How much did I spend this month?"
+    - "Tháng này tôi tiêu bao nhiêu tiền cho ăn uống?"
+  # Follow-up turns stay routed to this agent without re-classifying,
+  # e.g. the agent asks "how much?" and the user replies "200k".
+  sticky: true
+  sticky_turns: 2
+  # Lower value wins when multiple agents match with similar confidence.
+  priority: 10
+
+memory:
+  source_type: finance
+  default_importance: 0.6

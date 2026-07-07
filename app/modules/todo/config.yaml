@@ -1,0 +1,29 @@
+# app/modules/insight/config.yaml
+# Declarative metadata the orchestrator uses to classify intent and route to
+# this agent. Loaded by orchestrator/registry.py at startup — do not put
+# secrets or environment-specific values here (those belong in .env).
+
+agent:
+  name: todo
+  enabled: true
+  description: >
+    Manages the user's to-do list, sets reminders, and tracks progress on tasks.
+
+routing:
+  keywords:
+    vi: [quản lý, công việc, nhiệm vụ, nhắc nhở, danh sách]
+    en: [manage, task, to-do, reminder, list]
+  examples:
+    - "Hãy thêm một nhiệm vụ mới vào danh sách của tôi"
+    - "Remind me to call John tomorrow"
+    - "What tasks do I have for today?"
+    - "Tôi muốn xem danh sách công việc của mình"
+  # To-do tasks are often followed up in-context; default to
+  sticky: false
+  priority: 20
+
+memory:
+  # Insight primarily reads across other modules' memories rather than
+  # writing new raw entries; when it does persist a summary, tag it as chat.
+  source_type: chat
+  default_importance: 0.5

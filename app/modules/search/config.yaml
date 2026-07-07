@@ -1,0 +1,29 @@
+# app/modules/search/config.yaml
+# Declarative metadata the orchestrator uses to classify intent and route to
+# this agent. Loaded by orchestrator/registry.py at startup — do not put
+# secrets or environment-specific values here (those belong in .env).
+
+agent:
+  name: search
+  enabled: true
+  description: >
+    Searches the web for current information and returns a summarized
+    answer with sources.
+
+routing:
+  keywords:
+    vi: [tìm, tra cứu, tìm kiếm, google, tra]
+    en: [search, google, look up, lookup, find out, what is]
+  examples:
+    - "Tìm giúp tôi giá vàng hôm nay"
+    - "Search for the latest news on AI regulation"
+    - "What is the weather in Hanoi tomorrow?"
+    - "Tra cứu thông tin về chuyến bay VN123"
+  # Search results are rarely followed up in-context; default to
+  # re-classifying each new message.
+  sticky: false
+  priority: 20
+
+memory:
+  source_type: url
+  default_importance: 0.4

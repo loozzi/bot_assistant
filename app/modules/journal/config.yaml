@@ -1,0 +1,30 @@
+# app/modules/journal/config.yaml
+# Declarative metadata the orchestrator uses to classify intent and route to
+# this agent. Loaded by orchestrator/registry.py at startup — do not put
+# secrets or environment-specific values here (those belong in .env).
+
+agent:
+  name: journal
+  enabled: true
+  description: >
+    Records journal entries, analyzes emotional tone/mood, and helps the
+    user reflect on their day or feelings.
+
+routing:
+  keywords:
+    vi: [cảm xúc, nhật ký, hôm nay, tâm trạng, buồn, vui, stress]
+    en: [journal, feel, feeling, mood, today was, diary]
+  examples:
+    - "Hôm nay tôi cảm thấy khá mệt mỏi"
+    - "I feel really anxious about work today"
+    - "Let me write about my day"
+    - "Tâm trạng mình dạo này không ổn lắm"
+  sticky: true
+  sticky_turns: 2
+  priority: 10
+
+memory:
+  source_type: journal
+  default_importance: 0.7
+  # Journal is the only module that writes mood_score into Qdrant payloads.
+  track_mood_score: true
