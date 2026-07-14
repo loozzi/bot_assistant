@@ -69,6 +69,14 @@ class Settings(BaseSettings):
         )
 
     @property
+    def postgres_sync_dsn(self) -> str:
+        """Sync DSN for Alembic migrations only — app runtime uses postgres_dsn (asyncpg)."""
+        return (
+            f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    @property
     def is_production(self) -> bool:
         return self.environment == "production"
 
