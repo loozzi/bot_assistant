@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Telegram bot with a long-term "second brain" memory system, orchestrated through specialized LangGraph agents (journal, finance, search, insight, todo). See README.md for the feature summary and memory-layer table.
 
-The project is early-stage: infra plumbing (DB/Redis/Qdrant clients, settings, logging, bot skeleton) is built, but the orchestrator routing and most module agents are stubs. Read "Current implementation gaps" below before assuming a described capability is wired up.
+The project is early-stage. Infra plumbing (DB/Redis/Qdrant clients, settings, logging, bot skeleton, LLM provider) and the orchestrator's routing/dispatch/compose graph are built and wired together. Module *business logic* is still mostly stubs — only `search` has an `agent.py`, and its own subgraph nodes are placeholders. Read "Current implementation gaps" below before assuming a described capability produces real output.
 
 ## Commands
 
@@ -19,14 +19,17 @@ uv sync
 # Run the bot locally (requires .env filled in + postgres/redis/qdrant reachable)
 uv run python main.py
 
-# Start infra only
+# Start infra only (docker-compose.yml has no `app` service — the bot itself always runs locally via uv, not in Docker)
 docker compose up -d postgres redis qdrant
 
-# Full stack via Docker
-docker compose up
+# Alembic migrations (uses postgres_sync_dsn — psycopg2, not the app's asyncpg pool)
+uv run alembic revision --autogenerate -m "message"
+uv run alembic upgrade head
 ```
 
-There is **no test suite, linter, or formatter configured yet** — `tests/` only contains empty `__init__.py` files, and `pyproject.toml` has no `[tool.pytest]`, `ruff`, or `mypy` sections. Don't assume `pytest`/`ruff` commands work until they're added; add the relevant config alongside the first real test/lint setup.
+There is **no test suite, linter, or formatter configured yet** — `tests/` only contains empty `__init__.py` files (mirroring `unit/{infra,modules,orchestrator}` and `integration/`), and `pyproject.toml` has no `[tool.pytest]`, `ruff`, or `mypy` sections. Don't assume `pytest`/`ruff` commands work until they're added; add the relevant config alongside the first real test/lint setup.
+
+`scripts/` (referenced by README's Quick Start as `scripts/seed_db.py`) does not exist yet — the directory is empty.
 
 ## Architecture
 
@@ -40,30 +43,52 @@ modules/  → modules/          NEVER (no cross-module imports)
 infra/    → core/             OK
 infra/    → modules/          NEVER (infra must not know modules exist)
 bot/      → orchestrator/     OK (bot only talks to orchestrator)
-orchestrator/ → modules/      OK (only place allowed to know all modules)
+orchestrator/ → modules/      OK (only place allowed to know all modules, via registry — not direct imports)
 ```
 
 `app/core/` holds contracts only (`base_agent.py`, `state.py`) — no implementations.
 
 ### Request flow
 
-`bot/handlers.py` (`handle_text`) builds an `AgentState`, calls `orchestrator/graph.py:get_compiled_graph()`, and replies with the last AI message. The compiled LangGraph has exactly two nodes: `route` (calls `orchestrator/router.py:classify_intent`) → `dispatch` (calls `orchestrator/registry.py:get(agent_name).run(state)`).
+`bot/handlers.py` (`handle_text`) builds an `AgentState` (`app/core/state.py` — single schema, TypedDict with `messages`/`user_id`/`intents`/`retrieved_memories`/`agent_outputs`/`errors`/`metadata`) and calls `orchestrator/graph.py:get_compiled_graph().ainvoke(state)`. The reply is the last AI message in the returned state.
+
+The compiled LangGraph (`orchestrator/graph.py`) has six nodes:
+
+1. `ingest` — fills default field values for anything the caller didn't supply.
+2. `rehydrate_context` — **stub**, no working/episodic memory retrieval implemented yet.
+3. `route` — calls `orchestrator/router.py:classify_intents`, an **LLM-based, multi-label** classifier (not a keyword stub). It builds a system prompt from every enabled module's `config.yaml` (description/examples/keywords), asks the LLM for structured JSON output (`{"intents": [...]}` via `with_structured_output(..., method="json_mode")`), and falls back to `["unknown"]` on any failure.
+4. `dispatch_agent` — fanned out via `langgraph.types.Send`, one branch per resolved intent (`router.resolve_agent_names`), so a single message can hit multiple module agents in parallel. Each branch calls `registry.get(agent_name).run(agent_input)`; a `KeyError` (agent classified but not registered) is caught and recorded in `state["errors"]` rather than crashing the graph.
+5. `format_response` — single output passes through as-is; multiple outputs are merged by an LLM call (`_compose_reply`) that combines module replies into one natural response without naming the modules; falls back to newline-joining raw outputs if that LLM call fails.
+6. `episodic_writer` — **stub**, no eager Qdrant write implemented yet.
+
+### Agent contract
+
+`app/core/base_agent.py` defines `AgentInput` (`user_id`, `message`, `retrieved_memories`), `AgentOutput` (`reply`), and `BaseAgent` (ABC: `name` property + `async def run(input: AgentInput) -> AgentOutput`). Agents receive only this minimal input, not the full graph `AgentState`.
+
+`app/modules/search/agent.py` is the only implemented agent, and is also the reference pattern for **subgraph-style modules**: it builds its own internal `StateGraph` (`search → crawl → summary`, using `SearchState` from `state.py`, distinct from `AgentState`) and wraps it behind `BaseAgent.run()`, translating `AgentInput` into the subgraph's initial state and its final state back into `AgentOutput`. All three of its nodes (`node/search_node.py`, `node/crawl_node.py`, `node/summary_node.py`) currently return hardcoded `[stub]` placeholder content — no real search/crawl/LLM-summarize logic yet. `tools/` and `schema/` under `search/` are empty (`__init__.py` only); `prompts/` is an empty directory.
+
+### Registry and auto-discovery
+
+`orchestrator/registry.py:discover_and_register()` (called once, from `app/main.py:on_startup`) walks `app/modules/*` via `pkgutil.iter_modules`, imports `app.modules.<name>.agent` for any module that has one, and registers the module-level `agent` instance — skipping modules without `agent.py` (expected today for journal/finance/insight/todo, which only have `config.yaml` + empty `__init__.py`) and respecting `config.yaml`'s `agent.enabled: false`. This closes the gap that used to exist (no agent was ever registered) — `search` is now live end-to-end; the other four modules will need `agent.py` before they can be dispatched to, even though the router can already classify intent toward them via their `config.yaml`.
+
+### Known inconsistency: `app/modules/todo/config.yaml`
+
+Its header comment and `memory.source_type` block say "insight" (copy-paste from `insight/config.yaml`) even though `agent.name: todo` and the `routing` section are todo-specific. Functionally harmless today (routing keys off `agent.name`) but fix the comment/memory block together when next touching that file, don't propagate the mismatch.
 
 ### Current implementation gaps (important — don't assume these work)
 
-- **Routing is a keyword stub, not config-driven.** Each module ships a `config.yaml` with rich routing metadata (keywords, few-shot examples, sticky-session behavior, priority) — see `app/modules/*/config.yaml`. Nothing loads these files yet. `orchestrator/router.py` has its own hardcoded `_INTENT_MAP` and keyword lists that don't match the yaml (e.g. `todo` isn't in `_INTENT_MAP` at all). Treat the yaml files as a routing spec to implement against, not as active config.
-- **No agent is registered.** `orchestrator/registry.register()` is never called anywhere in the codebase. Any successfully classified intent will hit `registry.get(agent_name)` and raise `KeyError` inside `_dispatch`. Journal/finance/insight/todo modules currently have only `config.yaml` + empty `__init__.py` — no `agent.py` yet.
-- **Two competing state schemas.** `app/core/state.py` defines both `AgentState` (used by the orchestrator graph and `bot/handlers.py`) and `BaseState` (used by `app/modules/search/state.py:SearchState`). They overlap but aren't the same shape (`AgentState` has `intent`/`metadata`; `BaseState` has `intends`/`agent_outputs`/`errors`). Check which one a given file actually imports before adding fields — don't assume they're interchangeable.
-- **`search` doesn't implement `BaseAgent`.** Unlike the `BaseAgent.run(state) -> state` contract in `core/base_agent.py`, `app/modules/search/agent.py` builds its own standalone `StateGraph` (search → crawl → summary nodes, all currently `return {}` stubs) and is not wired into `registry`/`router` at all. If you finish the search module, decide whether it becomes a `BaseAgent` wrapping this subgraph, or whether the `BaseAgent` contract changes to accommodate subgraph-style modules — don't silently leave two patterns.
-- **`search/agent.py` loads `config.yaml` via a relative path** (`open("./config.yaml")`), which only resolves if the process cwd happens to be `app/modules/search/`. This will break under normal execution from the repo root — fix to a path relative to `__file__` when touching this file.
-- **No LLM provider implementation.** `.env`/`Settings` have `llm_provider`/`llm_api_key`/`llm_model` fields and `anthropic` is a dependency, but there's no `BaseLLMProvider`, no `app/infra/providers/*.py` beyond an empty `__init__.py`, and no registry. Router's intent classification is pure keyword matching (no LLM call yet).
+- **Only `search` has an `agent.py`.** journal/finance/insight/todo are routable (their `config.yaml` feeds the LLM classifier) but not dispatchable — the graph catches the resulting `KeyError` and reports a partial-failure note rather than crashing, but no real work happens for those intents.
+- **Search's own subgraph nodes are stubs.** Routing → dispatch → `SearchAgent.run()` all work, but the reply is always `[stub] Placeholder summary for: ...` since `search_node`/`crawl_node`/`summary_node` don't call a real search API, crawler, or LLM yet.
+- **No working/episodic memory retrieval or write.** `_rehydrate_context` and `_episodic_writer` in `orchestrator/graph.py` are no-op stubs; Redis/Qdrant clients are initialized at startup (`app/infra/memory/working.py`, `app/infra/db/vector.py`) but nothing reads or writes through them yet from the request path.
+- **LLM provider registry is minimal.** `app/infra/providers/llm_client.py:create_llm_client()` branches on `settings.llm_provider`, but `anthropic`/`ollama`/`gemini` all currently fall through to `create_openai_client()` (with a comment showing the intended real implementation) — only `openai.py` (via `langchain_openai.ChatOpenAI`) is real. Don't assume setting `LLM_PROVIDER=anthropic` actually calls Anthropic's API today.
 - **Postgres models are minimal; only `users` is migrated.** `app/models.py` defines `Base` (`DeclarativeBase`) and a `User` model; Alembic is wired up (`alembic/env.py` builds its engine from `Settings.postgres_sync_dsn`, a dedicated sync/psycopg2 DSN — app runtime keeps using the asyncpg pool in `app/infra/db/session.py` unchanged). Per-module tables (journal entries, finance transactions, todos, insight summaries) are still unmodeled — add them to `app/models.py` and run `uv run alembic revision --autogenerate` as each module's schema is designed.
 - **Scheduler jobs are TODO stubs.** `app/bot/scheduler.py` registers the memory-decay and compression cron jobs (03:00 daily / Sunday 04:00, `Asia/Ho_Chi_Minh`) but both job bodies are `# TODO: implement in Phase 2`.
 - **`scripts/seed_db.py`** referenced in README's Quick Start does not exist yet.
+- **No `app` service in `docker-compose.yml`.** README's "Full stack via Docker: `docker compose up app`" doesn't currently work — the compose file only defines `postgres`/`redis`/`qdrant`; the bot process itself is run with `uv run python main.py`, not containerized.
 
 ### Memory layer conventions (target design — mostly not yet implemented)
 
-Three backends, each with a distinct role: Redis (`infra/memory/working.py`, session TTL), Qdrant (`infra/db/vector.py`, permanent vector search, collection created lazily with 1024-dim cosine vectors for `multilingual-e5-large`), Postgres (structured facts — not yet modeled).
+Three backends, each with a distinct role: Redis (`infra/memory/working.py`, session TTL), Qdrant (`infra/db/vector.py`, permanent vector search, collection created lazily on `init_vector_db()` with 1024-dim cosine vectors for `multilingual-e5-large`), Postgres (structured facts — not yet modeled beyond `users`).
 
 Intended Qdrant payload/retrieval conventions to follow once ingestion is built:
 - Semantic chunking only (200–400 tokens, 50-token overlap) — never fixed character-count splitting.
@@ -73,11 +98,15 @@ Intended Qdrant payload/retrieval conventions to follow once ingestion is built:
 
 ### Adding a new module
 
-1. `app/modules/<name>/` with `agent.py` (subclass `BaseAgent`, implement `async def run(state) -> state`), `schemas.py`, `tools.py`, `prompts.py`, `config.yaml` (match the shape used by existing modules — `agent.name/enabled/description`, `routing.keywords/examples/sticky/priority`, `memory.source_type/default_importance`).
-2. Call `orchestrator/registry.register()` somewhere it actually runs at startup — currently no module does this, so you're the first.
-3. Wire actual routing in `orchestrator/router.py` (today's `_INTENT_MAP` + keyword lists are what you're extending/replacing).
+1. `app/modules/<name>/` needs `agent.py` (subclass `BaseAgent`, implement `async def run(input: AgentInput) -> AgentOutput`), plus `schemas.py`/`tools.py`/`prompts.py` as needed. `config.yaml` already exists for all five modules — match its shape (`agent.name/enabled/description`, `routing.keywords/examples/sticky/sticky_turns/priority`, `memory.source_type/default_importance`) when adding new fields.
+2. No registry wiring needed — `discover_and_register()` in `app/main.py:on_startup` picks up any module with an `agent.py` automatically. Follow `search/agent.py` as the reference implementation, including for subgraph-style modules.
+3. Routing is already LLM-driven via each module's `config.yaml` (`orchestrator/router.py`); a new module becomes classifiable as soon as its `config.yaml` exists — no router code changes needed unless you're changing classification behavior itself.
 4. Never import another `modules/*` package — shared logic goes in `infra/` or `utils/`.
 
 ### Config/env
 
 `app/config/settings.py` (`pydantic-settings`) is the single source of truth for env vars — see it directly rather than `.env.example` for defaults and which fields are required vs optional (only `telegram_bot_token`, `postgres_user`, `postgres_password` have no default).
+
+### Planning docs
+
+`docs/superpowers/{plans,specs}/` holds design specs and implementation plans (dated, e.g. `2026-07-14-llm-based-router.md`) written before larger features landed — useful for the *why* behind the router/registry/Postgres design, but treat them as historical design intent, not live status; cross-check against the code before relying on a claim there.
