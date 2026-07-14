@@ -12,6 +12,7 @@ from app.config.logging import setup_logging
 from app.infra.db.session import close_db, init_db
 from app.infra.db.vector import close_vector_db, init_vector_db
 from app.infra.memory.working import close_redis, init_redis
+from app.orchestrator import registry
 from app.orchestrator.graph import get_compiled_graph
 from app.utils.logger import get_logger
 
@@ -24,6 +25,8 @@ async def on_startup(bot: Bot) -> None:
     await init_db(settings)
     await init_redis(settings)
     await init_vector_db(settings)
+
+    registry.discover_and_register()
 
     # Warm-up the compiled graph so the first request isn't slow
     get_compiled_graph()
