@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = ""
     llm_base_url: str = ""
+    llm_temperature: float = 0.7
+    llm_max_tokens: int = 1024
 
     # Embedding
     embedding_model: str = "multilingual-e5-large"
