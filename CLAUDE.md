@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Telegram bot with a long-term "second brain" memory system, orchestrated through specialized LangGraph agents (journal, finance, search, insight, todo). See README.md for the feature summary and memory-layer table.
 
-The project is early-stage. Infra plumbing (DB/Redis/Qdrant clients, settings, logging, bot skeleton, LLM provider) and the orchestrator's routing/dispatch/compose graph are built and wired together. Module *business logic* is still mostly stubs — only `search` has an `agent.py`, and its own subgraph nodes are placeholders. Read "Current implementation gaps" below before assuming a described capability produces real output.
+The project is early-stage. Infra plumbing (DB/Redis/Qdrant clients, settings, logging, bot skeleton, LLM provider) and the orchestrator's routing/dispatch/compose graph are built and wired together. The `search` module has a real end-to-end implementation (Tavily search → Jina crawl → LLM summary pipeline with graceful error handling). Other modules (journal, finance, insight, todo) are routable but not yet dispatchable. Read "Current implementation gaps" below before assuming a described capability produces real output.
 
 ## Commands
 
@@ -78,7 +78,7 @@ Its header comment and `memory.source_type` block say "insight" (copy-paste from
 ### Current implementation gaps (important — don't assume these work)
 
 - **Only `search` has an `agent.py`.** journal/finance/insight/todo are routable (their `config.yaml` feeds the LLM classifier) but not dispatchable — the graph catches the resulting `KeyError` and reports a partial-failure note rather than crashing, but no real work happens for those intents.
-- **Search's own subgraph nodes are stubs.** Routing → dispatch → `SearchAgent.run()` all work, but the reply is always `[stub] Placeholder summary for: ...` since `search_node`/`crawl_node`/`summary_node` don't call a real search API, crawler, or LLM yet.
+- **Search's subgraph nodes are real but minimal.** The `search_node` calls Tavily's web search API (gracefully handles missing `TAVILY_API_KEY` by returning empty results), `crawl_node` fetches full page content via Jina Reader with per-URL fallback (keeps original Tavily snippet if fetch fails), and `summary_node` calls the LLM with structured output for a curated answer. All three nodes degrade gracefully on network/API failures — no exception propagates out. The implementation demonstrates the subpackage pattern (`tools/`, `schema/`, `prompts/`) that other modules should copy.
 - **No working/episodic memory retrieval or write.** `_rehydrate_context` and `_episodic_writer` in `orchestrator/graph.py` are no-op stubs; Redis/Qdrant clients are initialized at startup (`app/infra/memory/working.py`, `app/infra/db/vector.py`) but nothing reads or writes through them yet from the request path.
 - **LLM provider registry is minimal.** `app/infra/providers/llm_client.py:create_llm_client()` branches on `settings.llm_provider`, but `anthropic`/`ollama`/`gemini` all currently fall through to `create_openai_client()` (with a comment showing the intended real implementation) — only `openai.py` (via `langchain_openai.ChatOpenAI`) is real. Don't assume setting `LLM_PROVIDER=anthropic` actually calls Anthropic's API today.
 - **Postgres models are minimal; only `users` is migrated.** `app/models.py` defines `Base` (`DeclarativeBase`) and a `User` model; Alembic is wired up (`alembic/env.py` builds its engine from `Settings.postgres_sync_dsn`, a dedicated sync/psycopg2 DSN — app runtime keeps using the asyncpg pool in `app/infra/db/session.py` unchanged). Per-module tables (journal entries, finance transactions, todos, insight summaries) are still unmodeled — add them to `app/models.py` and run `uv run alembic revision --autogenerate` as each module's schema is designed.
@@ -98,8 +98,14 @@ Intended Qdrant payload/retrieval conventions to follow once ingestion is built:
 
 ### Adding a new module
 
-1. `app/modules/<name>/` needs `agent.py` (subclass `BaseAgent`, implement `async def run(input: AgentInput) -> AgentOutput`), plus `schemas.py`/`tools.py`/`prompts.py` as needed. `config.yaml` already exists for all five modules — match its shape (`agent.name/enabled/description`, `routing.keywords/examples/sticky/sticky_turns/priority`, `memory.source_type/default_importance`) when adding new fields.
-2. No registry wiring needed — `discover_and_register()` in `app/main.py:on_startup` picks up any module with an `agent.py` automatically. Follow `search/agent.py` as the reference implementation, including for subgraph-style modules.
+1. `app/modules/<name>/` needs `agent.py` (subclass `BaseAgent`, implement `async def run(input: AgentInput) -> AgentOutput`). For modules that build internal subgraphs or have external tool calls, follow the subpackage pattern from `search/`:
+   - `tools/` — external API wrappers (e.g., `tools/tavily.py`, `tools/jina.py`, `tools/_common.py` for shared error classes/config loaders).
+   - `schema/` — Pydantic models for structured LLM output (e.g., `schema/search_summary.py`).
+   - `prompts/` — system prompts and fallback messages (e.g., `prompts/summary.py`).
+   - `node/` — subgraph node implementations (for subgraph-style modules).
+   - `state.py` — subgraph-specific state schema (for subgraph-style modules).
+   `config.yaml` already exists for all five modules — match its shape (`agent.name/enabled/description`, `routing.keywords/examples/sticky/sticky_turns/priority`, `memory.source_type/default_importance`) when adding new fields like `tuning:`.
+2. No registry wiring needed — `discover_and_register()` in `app/main.py:on_startup` picks up any module with an `agent.py` automatically. Follow `search/agent.py` as the reference implementation for both simple agents and subgraph-style modules.
 3. Routing is already LLM-driven via each module's `config.yaml` (`orchestrator/router.py`); a new module becomes classifiable as soon as its `config.yaml` exists — no router code changes needed unless you're changing classification behavior itself.
 4. Never import another `modules/*` package — shared logic goes in `infra/` or `utils/`.
 

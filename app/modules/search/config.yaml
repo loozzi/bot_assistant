@@ -27,3 +27,7 @@ routing:
 memory:
   source_type: url
   default_importance: 0.4
+
+tuning:
+  max_results: 3
+  timeout_seconds: 10
