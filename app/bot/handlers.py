@@ -63,9 +63,6 @@ async def handle_text(message: Message, user_id: str) -> None:
         state: AgentState = {
             "messages": [HumanMessage(content=message.text)],
             "user_id": user_id,
-            "intent": "",
-            "retrieved_memories": [],
-            "metadata": {},
         }
 
         graph = get_compiled_graph()

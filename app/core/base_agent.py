@@ -1,6 +1,15 @@
 from abc import ABC, abstractmethod
+from typing import TypedDict
 
-from app.core.state import AgentState
+
+class AgentInput(TypedDict):
+    user_id: str
+    message: str
+    retrieved_memories: list[dict]
+
+
+class AgentOutput(TypedDict):
+    reply: str
 
 
 class BaseAgent(ABC):
@@ -13,6 +22,6 @@ class BaseAgent(ABC):
         ...
 
     @abstractmethod
-    async def run(self, state: AgentState) -> AgentState:
-        """Process the current state and return an updated state."""
+    async def run(self, input: AgentInput) -> AgentOutput:
+        """Process minimal input and return the agent's own reply only."""
         ...
