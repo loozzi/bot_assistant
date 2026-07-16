@@ -3,6 +3,10 @@
 Date: 2026-07-15
 Status: Approved
 
+> **Amendment (implementation time):** Empirically verified against the installed langgraph (`1.2.6`) that `interrupt()` raises `RuntimeError: Called get_config outside of a runnable context` when used inside an async graph (`.ainvoke()`, `async def` nodes) on Python 3.10 — langgraph deliberately guards this because contextvar propagation across async tasks isn't safe before Python 3.11. Since this bot runs entirely async on one shared event loop, this blocks the whole design as written. **Decision: bump the project to Python 3.11+** (`.python-version`, `pyproject.toml`'s `requires-python`) rather than converting HITL-enabled modules to sync execution or hand-rolling a non-LangGraph pause mechanism. Confirmed working end-to-end (parent+subgraph both checkpointed, bridged interrupt, conditional routing after resume) under Python 3.11.15 before writing the implementation plan. `uv python install 3.11` + `uv sync` succeed cleanly on this repo.
+>
+> **Second finding:** `langgraph-checkpoint-redis`'s `AsyncRedisSaver` requires the Redis server itself to support **RediSearch + RedisJSON** (`FT.*`/`JSON.*` commands) — plain `redis:7-alpine` (the image `docker-compose.yml` currently uses) doesn't have these modules and fails with `ResponseError: unknown command 'FT._LIST'` on `asetup()`. Verified `redis:8-alpine` bundles RediSearch/RedisJSON/RedisBloom/RedisTimeSeries out of the box (Redis 8 folded former "Redis Stack" modules into core OSS Redis) and re-ran the full pause/resume/`adelete_thread()` smoke test against a real `redis:8-alpine` container successfully. **Decision: bump `docker-compose.yml`'s `redis` image from `redis:7-alpine` to `redis:8-alpine`** (local dev only — no `app` service in compose, per CLAUDE.md — so this doesn't touch any production deployment path). Existing `redis_data` volume is RDB/AOF-compatible across this bump, no migration needed.
+
 ## Problem
 
 Neither the orchestrator graph (`orchestrator/graph.py`) nor any module subgraph (only `search/agent.py` exists today) is compiled with a checkpointer. `bot/handlers.py:handle_text` calls `graph.ainvoke(state)` once per Telegram message and always runs the graph to completion in a single shot — there is no way for a node to pause mid-turn, ask the user a question via Telegram (button or free-text reply), and resume exactly where it left off on the next message.
@@ -24,6 +28,13 @@ This spec adds a generic human-in-the-loop mechanism, using LangGraph's `interru
 - Formal test suite (`tests/` remains unset up per CLAUDE.md; this spec doesn't change that).
 
 ## Design
+
+### 0. Runtime prerequisites
+
+1. **Python 3.11+.** `.python-version` → `3.11`, `pyproject.toml`'s `requires-python` → `">=3.11"`. Re-run `uv sync` (verified clean on this repo; no dependency in `pyproject.toml` pins to `<3.11`). `interrupt()` is unsafe on 3.10 in an async graph (see amendment above).
+2. **Redis 8+ locally.** `docker-compose.yml`'s `redis` service image → `redis:8-alpine` (bundles RediSearch/RedisJSON, required by `AsyncRedisSaver`; see amendment above).
+
+Both are hard prerequisites for every other section below.
 
 ### 1. Checkpointer infra — `app/infra/memory/checkpointer.py` (new)
 
