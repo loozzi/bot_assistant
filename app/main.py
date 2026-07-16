@@ -11,6 +11,7 @@ from app.config.settings import get_settings
 from app.config.logging import setup_logging
 from app.infra.db.session import close_db, init_db
 from app.infra.db.vector import close_vector_db, init_vector_db
+from app.infra.memory.checkpointer import close_checkpointer, init_checkpointer
 from app.infra.memory.working import close_redis, init_redis
 from app.orchestrator import registry
 from app.orchestrator.graph import get_compiled_graph
@@ -24,6 +25,7 @@ async def on_startup(bot: Bot) -> None:
 
     await init_db(settings)
     await init_redis(settings)
+    await init_checkpointer(settings)
     await init_vector_db(settings)
 
     registry.discover_and_register()
@@ -46,6 +48,7 @@ async def on_shutdown(bot: Bot) -> None:
     except RuntimeError:
         pass
 
+    await close_checkpointer()
     await close_redis()
     await close_vector_db()
     await close_db()

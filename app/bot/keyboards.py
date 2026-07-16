@@ -1,6 +1,8 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from app.core.hitl import HumanReviewOption
+
 
 def cancel_keyboard(label: str = "Huỷ") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
@@ -25,6 +27,15 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="💰 Chi tiêu", callback_data="menu:finance")
     builder.button(text="🔍 Tìm kiếm", callback_data="menu:search")
     builder.button(text="📊 Phân tích", callback_data="menu:insight")
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def hitl_keyboard(options: list[HumanReviewOption]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for option in options:
+        builder.button(text=option["label"], callback_data=f"hitl:{option['value']}")
+    builder.button(text="Huỷ", callback_data="hitl_cancel")
     builder.adjust(2)
     return builder.as_markup()
 

@@ -4,6 +4,7 @@ from langgraph.types import Send
 
 from app.core.base_agent import AgentInput
 from app.core.state import AgentState
+from app.infra.memory.checkpointer import get_checkpointer
 from app.infra.providers.llm_client import create_llm_client
 from app.orchestrator import registry, router
 from app.utils.logger import get_logger
@@ -145,5 +146,5 @@ _compiled = None
 def get_compiled_graph():
     global _compiled
     if _compiled is None:
-        _compiled = build_graph().compile()
+        _compiled = build_graph().compile(checkpointer=get_checkpointer())
     return _compiled

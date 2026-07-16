@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     qdrant_prefer_grpc: bool = True
     qdrant_timeout: float = 30.0
 
+    # Search Agent Tools
+    tavily_api_key: str = ""
+    jina_api_key: str = ""
+
     # App
     log_level: str = "INFO"
     environment: str = "development"
