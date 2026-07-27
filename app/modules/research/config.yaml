@@ -1,0 +1,33 @@
+# app/modules/research/config.yaml
+# Declarative metadata the orchestrator uses to classify intent and route to
+# this agent. Loaded by orchestrator/registry.py at startup — do not put
+# secrets or environment-specific values here (those belong in .env).
+
+agent:
+  name: research
+  enabled: true
+  description: >
+    Saves web links or keyword research (crawled and summarized) for later
+    recall, and answers questions about previously saved research.
+
+routing:
+  keywords:
+    vi: [lưu lại, nghiên cứu, tra cứu tài liệu, đọc lại, tóm tắt bài, đường link]
+    en: [research, save this, read later, summarize this article, remember this link]
+  examples:
+    - "Lưu link này lại giúp tôi: https://example.com/article"
+    - "Nghiên cứu giúp tôi về xu hướng AI 2026 rồi lưu lại"
+    - "Tôi từng đọc gì về chủ đề blockchain chưa nhỉ?"
+    - "Summarize and save this article: https://example.com/post"
+  sticky: false
+  priority: 20
+
+memory:
+  source_type: research
+  default_importance: 0.5
+
+tuning:
+  max_results: 3
+  timeout_seconds: 10
+  recall_top_k: 5
+  recall_min_score: 0.5
