@@ -51,9 +51,9 @@ async def search_research_points(
     client = get_qdrant_client()
     settings = get_settings()
 
-    results = await client.search(
+    response = await client.query_points(
         collection_name=settings.qdrant_collection,
-        query_vector=query_vector,
+        query=query_vector,
         query_filter=Filter(
             must=[
                 FieldCondition(key="user_id", match=MatchValue(value=user_id)),
@@ -62,6 +62,7 @@ async def search_research_points(
         ),
         limit=top_k,
         score_threshold=min_score,
+        with_payload=True,
     )
     return [
         {
@@ -71,5 +72,5 @@ async def search_research_points(
             "timestamp": r.payload.get("timestamp", ""),
             "score": r.score,
         }
-        for r in results
+        for r in response.points
     ]

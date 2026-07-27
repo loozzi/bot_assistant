@@ -41,6 +41,5 @@ async def classify_node(state: ResearchState) -> dict:
         mode = "new_link"
 
     output: dict = {"mode": mode}
-    if url_match:
-        output["url"] = url_match.group(0)
+    output["url"] = url_match.group(0) if url_match else ""
     return output

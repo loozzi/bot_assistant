@@ -30,4 +30,4 @@ tuning:
   max_results: 3
   timeout_seconds: 10
   recall_top_k: 5
-  recall_min_score: 0.5
+  recall_min_score: 0.8

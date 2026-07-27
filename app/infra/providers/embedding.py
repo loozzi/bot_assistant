@@ -28,7 +28,7 @@ async def embed_text(text: str, *, prefix: str) -> list[float]:
     `prefix` must be "passage: " for content being stored and "query: " for
     a recall query, per the e5 model's asymmetric training convention.
     """
-    model = _load_model()
     loop = asyncio.get_running_loop()
+    model = await loop.run_in_executor(None, _load_model)
     vector = await loop.run_in_executor(None, model.encode, prefix + text)
     return vector.tolist()
