@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 1024
 
     # Embedding
-    embedding_model: str = "multilingual-e5-large"
+    embedding_model: str = "intfloat/multilingual-e5-large"
     embedding_device: str = "cpu"
 
     # PostgreSQL
