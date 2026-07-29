@@ -49,14 +49,15 @@ def _get_client() -> httpx.AsyncClient:
     return _client
 
 
-async def embed_texts(texts: list[str]) -> list[list[float]]:
+async def embed_texts(texts: list[str], *, prefix: str = "") -> list[list[float]]:
     """Embed a batch of texts via Ollama's /api/embed endpoint."""
     if not texts:
         return []
 
     client = _get_client()
+    payload_inputs = [f"{prefix}{text}" for text in texts] if prefix else texts
     try:
-        response = await client.post("/api/embed", json={"model": _model, "input": texts})
+        response = await client.post("/api/embed", json={"model": _model, "input": payload_inputs})
         response.raise_for_status()
     except httpx.HTTPError as exc:
         logger.warning("embedding_request_failed", error=str(exc))
@@ -69,7 +70,7 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
     return embeddings
 
 
-async def embed_text(text: str) -> list[float]:
+async def embed_text(text: str, *, prefix: str = "") -> list[float]:
     """Embed a single text string."""
-    embeddings = await embed_texts([text])
+    embeddings = await embed_texts([text], prefix=prefix)
     return embeddings[0]

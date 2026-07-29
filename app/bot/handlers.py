@@ -30,6 +30,7 @@ async def cmd_start(message: Message, user_id: str) -> None:
         "• 📓 Ghi nhật ký & cảm xúc\n"
         "• 💰 Theo dõi chi tiêu\n"
         "• 🔍 Tìm kiếm thông tin\n"
+        "• 🔬 Lưu & tra cứu lại nghiên cứu (link, từ khoá)\n"
         "• 📊 Xem phân tích xu hướng\n\n"
         "Hoặc chỉ cần nhắn tin tự nhiên — mình sẽ hiểu!",
         reply_markup=main_menu_keyboard(),
@@ -43,6 +44,7 @@ async def cmd_help(message: Message) -> None:
         "<b>Nhật ký:</b> Kể về ngày của bạn, cảm xúc, suy nghĩ\n"
         "<b>Chi tiêu:</b> 'Mua cà phê 45k', 'Tốn 200k tiền ăn'\n"
         "<b>Tìm kiếm:</b> 'Tìm ...', 'Search ...'\n"
+        "<b>Nghiên cứu:</b> 'Lưu link này lại ...', 'Tôi từng đọc gì về ... chưa?'\n"
         "<b>Phân tích:</b> 'Phân tích chi tiêu tháng này'\n\n"
         "Dùng /menu để xem menu chính. Dùng /cancel để huỷ câu hỏi đang chờ.",
         parse_mode="HTML",
@@ -177,6 +179,7 @@ async def cb_menu(callback: CallbackQuery, user_id: str) -> None:
         "finance": "Bạn muốn ghi chi tiêu gì?",
         "search": "Bạn muốn tìm kiếm gì?",
         "insight": "Bạn muốn phân tích gì?",
+        "research": "Gửi link hoặc từ khoá bạn muốn nghiên cứu và lưu lại.",
     }
     await callback.message.answer(prompts.get(module, "Bạn cần gì?"))  # type: ignore[union-attr]
     await callback.answer()

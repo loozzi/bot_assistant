@@ -16,6 +16,8 @@ dependencies = [
     "asyncpg>=0.29",
     # Vector DB
     "qdrant-client>=1.9",
+    # Embeddings
+    "sentence-transformers>=3.0",
     # Cache
     "redis>=5.0",
     # Settings

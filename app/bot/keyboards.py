@@ -27,6 +27,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="💰 Chi tiêu", callback_data="menu:finance")
     builder.button(text="🔍 Tìm kiếm", callback_data="menu:search")
     builder.button(text="📊 Phân tích", callback_data="menu:insight")
+    builder.button(text="🔬 Nghiên cứu", callback_data="menu:research")
     builder.adjust(2)
     return builder.as_markup()
 
