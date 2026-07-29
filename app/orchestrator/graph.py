@@ -4,6 +4,7 @@ from langgraph.types import Send
 
 from app.core.base_agent import AgentInput
 from app.core.state import AgentState
+from app.infra.memory import episodic
 from app.infra.memory.checkpointer import get_checkpointer
 from app.infra.providers.llm_client import create_llm_client
 from app.orchestrator import registry, router
@@ -36,9 +37,24 @@ async def _ingest(state: AgentState) -> AgentState:
 
 
 async def _rehydrate_context(state: AgentState) -> AgentState:
-    """Stub — no working/episodic memory retrieval implemented yet (see CLAUDE.md)."""
-    logger.debug("rehydrate_context_stub", user_id=state["user_id"])
-    return {}
+    """Retrieve relevant past memories for the latest message, scoped to the user.
+
+    Falls back to no context (rather than raising) on any memory-backend
+    failure, so the bot keeps working when Redis/Qdrant/the embedding
+    service are unavailable.
+    """
+    query = _last_human_message(state["messages"])
+    if not query:
+        return {}
+
+    source_types = {spec["source_type"] for spec in router._load_module_specs().values()}
+    try:
+        memories = await episodic.retrieve_memories(state["user_id"], query, source_types)
+    except Exception as exc:
+        logger.warning("rehydrate_context_failed", user_id=state["user_id"], error=str(exc))
+        return {}
+
+    return {"retrieved_memories": memories}
 
 
 async def _route(state: AgentState) -> AgentState:
@@ -51,12 +67,21 @@ def _fan_out(state: AgentState):
     if not names:
         return "format_response"
 
-    agent_input: AgentInput = {
-        "user_id": state["user_id"],
-        "message": _last_human_message(state["messages"]),
-        "retrieved_memories": state.get("retrieved_memories", []),
-    }
-    return [Send("dispatch_agent", {"_agent_name": name, "_input": agent_input}) for name in names]
+    message = _last_human_message(state["messages"])
+    retrieved = state.get("retrieved_memories", [])
+    specs = router._load_module_specs()
+
+    sends = []
+    for name in names:
+        source_type = specs[name]["source_type"]
+        filtered_memories = [m["payload"] for m in retrieved if m["source_type"] == source_type]
+        agent_input: AgentInput = {
+            "user_id": state["user_id"],
+            "message": message,
+            "retrieved_memories": filtered_memories,
+        }
+        sends.append(Send("dispatch_agent", {"_agent_name": name, "_input": agent_input}))
+    return sends
 
 
 async def _dispatch_agent(payload: dict) -> dict:
@@ -114,8 +139,34 @@ async def _format_response(state: AgentState) -> AgentState:
 
 
 async def _episodic_writer(state: AgentState) -> AgentState:
-    """Stub — no eager Qdrant write implemented yet (see CLAUDE.md)."""
-    logger.debug("episodic_writer_stub", user_id=state["user_id"])
+    """Write each dispatched agent's reply to Qdrant as episodic memory.
+
+    Best-effort per intent: a write failure for one intent is logged and
+    skipped rather than aborting the others or the response to the user.
+    """
+    outputs = state.get("agent_outputs") or {}
+    if not outputs:
+        return {}
+
+    query = _last_human_message(state["messages"])
+    specs = router._load_module_specs()
+
+    for intent, reply in outputs.items():
+        spec = specs.get(intent)
+        if not spec:
+            continue
+        try:
+            await episodic.write_episodic_memory(
+                user_id=state["user_id"],
+                query=query,
+                intent=intent,
+                reply=reply,
+                source_type=spec["source_type"],
+                default_importance=spec["default_importance"],
+            )
+        except Exception as exc:
+            logger.warning("episodic_writer_failed", intent=intent, error=str(exc))
+
     return {}
 
 

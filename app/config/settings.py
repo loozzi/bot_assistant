@@ -23,9 +23,9 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.7
     llm_max_tokens: int = 1024
 
-    # Embedding
-    embedding_model: str = "intfloat/multilingual-e5-large"
-    embedding_device: str = "cpu"
+    # Embedding (served via Ollama)
+    embedding_model: str = "bge-m3"
+    ollama_base_url: str = "http://localhost:11434"
 
     # PostgreSQL
     postgres_host: str = "localhost"

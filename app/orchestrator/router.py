@@ -25,10 +25,13 @@ def _load_module_specs() -> dict[str, dict]:
             continue
         name = agent_cfg.get("name", config_path.parent.name)
         routing_cfg = cfg.get("routing", {})
+        memory_cfg = cfg.get("memory", {})
         specs[name] = {
             "description": agent_cfg.get("description", "").strip(),
             "examples": routing_cfg.get("examples", []),
             "keywords": routing_cfg.get("keywords", {}),
+            "source_type": memory_cfg.get("source_type", name),
+            "default_importance": memory_cfg.get("default_importance", 0.5),
         }
     return specs
 
