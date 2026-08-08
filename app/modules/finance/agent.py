@@ -7,6 +7,7 @@ from app.core.base_agent import AgentInput, AgentOutput, BaseAgent
 from app.core.hitl import run_interruptible_subgraph
 from app.infra.memory.checkpointer import get_checkpointer
 
+from .node import placeholder_node
 from .state import FinancialState
 
 _CONFIG_PATH = Path(__file__).parent / "config.yaml"
@@ -17,6 +18,10 @@ builder = StateGraph(
     name=config["agent"]["name"],
     description=config["agent"]["description"],
 )
+
+builder.add_node("placeholder", placeholder_node)
+builder.set_entry_point("placeholder")
+builder.add_edge("placeholder", END)
 
 graph = builder.compile(checkpointer=get_checkpointer())
 
@@ -31,7 +36,8 @@ class FinancialAgent(BaseAgent):
     async def run(self, input: AgentInput) -> AgentOutput:
         initial: FinancialState = {
             "user_id": input["user_id"],
-            "user_query": input["message"]
+            "user_query": input["message"],
+            "reply": "",
         }
         result = await run_interruptible_subgraph(
             graph,
