@@ -26,7 +26,6 @@ config = yaml.safe_load(_CONFIG_PATH.read_text())
 
 logger = get_logger(__name__)
 
-
 def _route_after_classify(state: FinancialState) -> str:
     return state.get("sub_intent") if state.get("sub_intent") in ("log", "query") else "not_implemented"
 

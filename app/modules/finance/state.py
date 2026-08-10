@@ -1,6 +1,7 @@
 from typing_extensions import NotRequired, TypedDict
 
 
+
 class FinancialState(TypedDict):
     """State for the FinancialAgent's internal subgraph."""
 
