@@ -37,10 +37,9 @@ async def _ensure_collection(cfg: Settings) -> None:
     if cfg.qdrant_collection in existing:
         return
 
-    # multilingual-e5-large produces 1024-dim vectors
     await _client.create_collection(
         collection_name=cfg.qdrant_collection,
-        vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+        vectors_config=VectorParams(size=cfg.embedding_dim, distance=Distance.COSINE),
     )
     logger.info("qdrant_collection_created", collection=cfg.qdrant_collection)
 

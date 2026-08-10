@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     # Embedding (served via Ollama)
     embedding_model: str = "bge-m3"
+    embedding_dim: int = 1024  # must match embedding_model's actual output size, or Qdrant rejects every write/query
     ollama_base_url: str = "http://localhost:11434"
 
     # PostgreSQL
