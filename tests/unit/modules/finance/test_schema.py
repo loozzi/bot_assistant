@@ -9,7 +9,17 @@ from app.modules.finance.schema.query_params import QueryParams
 
 
 def test_classify_result_accepts_known_labels():
-    assert ClassifyResult(sub_intent="log").sub_intent == "log"
+    assert ClassifyResult(sub_intents=["log", "query"]).sub_intents == ["log", "query"]
+
+
+def test_classify_result_accepts_single_label_shape():
+    assert ClassifyResult(sub_intent="log").sub_intents == ["log"]
+    assert ClassifyResult.model_validate({"sub_intent": "query"}).sub_intents == ["query"]
+
+
+def test_classify_result_rejects_empty_list():
+    with pytest.raises(ValidationError):
+        ClassifyResult(sub_intents=[])
 
 
 def test_classify_result_rejects_unknown_label():
@@ -45,3 +55,9 @@ def test_parse_result_holds_multiple_transactions():
 def test_query_params_requires_period():
     with pytest.raises(ValidationError):
         QueryParams(metric="total")
+
+
+def test_query_params_accepts_income_and_net():
+    for metric in ("income", "net"):
+        params = QueryParams(metric=metric, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31))
+        assert params.metric == metric

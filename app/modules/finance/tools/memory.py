@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from qdrant_client.http.models import PointStruct
+from qdrant_client.http.models import FieldCondition, Filter, FilterSelector, MatchValue, PointStruct
 
 from app.config.settings import get_settings
 from app.infra.db.vector import get_qdrant_client
@@ -64,3 +64,25 @@ async def write_transaction_memory(
         )
     except Exception as exc:
         logger.warning("finance_memory_write_failed", log_id=log_id, error=str(exc))
+
+
+async def delete_transaction_memory(user_id: str, log_id: int) -> None:
+    """Remove every Qdrant point written for this log (see
+    write_transaction_memory). Never raises, same reasoning: Postgres is the
+    source of truth, a stale memory point is the lesser failure."""
+    try:
+        qdrant = get_qdrant_client()
+        await qdrant.delete(
+            collection_name=get_settings().qdrant_collection,
+            points_selector=FilterSelector(
+                filter=Filter(
+                    must=[
+                        FieldCondition(key="user_id", match=MatchValue(value=user_id)),
+                        FieldCondition(key="source_type", match=MatchValue(value="finance")),
+                        FieldCondition(key="log_id", match=MatchValue(value=log_id)),
+                    ]
+                )
+            ),
+        )
+    except Exception as exc:
+        logger.warning("finance_memory_delete_failed", log_id=log_id, error=str(exc))

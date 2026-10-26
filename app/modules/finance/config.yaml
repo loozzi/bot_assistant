@@ -23,6 +23,10 @@ routing:
     - "I spent $50 on groceries today"
     - "How much did I spend this month?"
     - "Tháng này tôi tiêu bao nhiêu tiền cho ăn uống?"
+    - "Xoá khoản trà sữa hôm qua"
+    - "Sửa giao dịch cà phê sáng nay thành 35k"
+    - "Thêm danh mục Cà phê"
+    - "Gộp danh mục Cà phê vào Ăn uống"
   # Follow-up turns stay routed to this agent without re-classifying,
   # e.g. the agent asks "how much?" and the user replies "200k".
   sticky: true

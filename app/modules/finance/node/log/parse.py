@@ -4,6 +4,7 @@ from app.utils.logger import get_logger
 from ...prompts.parse import PARSE_SYSTEM_PROMPT, build_parse_user_message
 from ...schema.parsed_transaction import ParseResult
 from ...tools.amounts import parse_vnd
+from ...tools.categories import category_names
 from ...tools.dates import today_ict
 
 logger = get_logger(__name__)
@@ -27,7 +28,9 @@ async def log_parse_node(state: dict) -> dict:
                 {"role": "system", "content": PARSE_SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    "content": build_parse_user_message(state["user_query"], _today_iso()),
+                    "content": build_parse_user_message(
+                        state["user_query"], _today_iso(), category_names(state)
+                    ),
                 },
             ]
         )
@@ -38,6 +41,15 @@ async def log_parse_node(state: dict) -> dict:
             "unparsed_notes": ["Mình chưa đọc hiểu được giao dịch, bạn thử nói rõ hơn nhé."],
         }
 
+    transactions, notes = verify_transactions(result)
+    return {"parsed_transactions": transactions, "unparsed_notes": notes}
+
+
+def verify_transactions(result: ParseResult) -> tuple[list[dict], list[str]]:
+    """Re-derive each amount from its raw text and drop implausible ones.
+
+    Returns (transactions, notes) — notes carries the LLM's own
+    unparsed_notes plus one entry per dropped transaction."""
     transactions: list[dict] = []
     notes = list(result.unparsed_notes)
 
@@ -55,4 +67,4 @@ async def log_parse_node(state: dict) -> dict:
         dumped["amount_adjusted"] = amount_adjusted
         transactions.append(dumped)
 
-    return {"parsed_transactions": transactions, "unparsed_notes": notes}
+    return transactions, notes

@@ -1,6 +1,6 @@
 from langchain_core.messages import AIMessage
 from langgraph.graph import END, StateGraph
-from langgraph.types import Send
+from langgraph.types import Overwrite, Send
 
 from app.core.base_agent import AgentInput
 from app.core.state import AgentState
@@ -24,14 +24,23 @@ def _last_human_message(messages: list) -> str:
 
 
 async def _ingest(state: AgentState) -> AgentState:
-    """Fill defaults for any field the caller didn't supply."""
+    """Fill defaults for any field the caller didn't supply.
+
+    `agent_outputs`/`errors` use accumulating reducers (`operator.or_`/
+    `operator.add`) so parallel `dispatch_agent` branches within one turn
+    can fan back in — but the thread persists for the user's whole
+    conversation, so without an explicit reset each new turn would keep
+    merging into every prior turn's outputs forever (a stale module's reply
+    from turns ago bleeding into today's response). `Overwrite` bypasses
+    the reducer to actually clear them at the start of each turn.
+    """
     return {
         "messages": state.get("messages", []),
         "user_id": state["user_id"],
         "intents": state.get("intents", []),
         "retrieved_memories": state.get("retrieved_memories", []),
-        "agent_outputs": state.get("agent_outputs", {}),
-        "errors": state.get("errors", []),
+        "agent_outputs": Overwrite({}),
+        "errors": Overwrite([]),
         "metadata": state.get("metadata", {}),
     }
 
