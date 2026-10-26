@@ -8,7 +8,7 @@ from app.models import FinanceCategory, FinanceLog
 _UNCATEGORIZED = "Khác"
 
 
-def _keyword_filter(keyword: str):
+def keyword_filter(keyword: str):
     """Case-insensitive substring match that treats LIKE wildcards literally."""
     escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return FinanceLog.description.ilike(f"%{escaped}%", escape="\\")
@@ -82,7 +82,7 @@ async def search_transactions(
             FinanceLog.log_type == "expense",
             FinanceLog.occurred_at >= start,
             FinanceLog.occurred_at <= end,
-            _keyword_filter(keyword),
+            keyword_filter(keyword),
         )
         .order_by(FinanceLog.occurred_at.desc())
         .limit(limit)
@@ -106,7 +106,7 @@ async def search_total(session: AsyncSession, user_pk: int, keyword: str, start:
                 FinanceLog.log_type == "expense",
                 FinanceLog.occurred_at >= start,
                 FinanceLog.occurred_at <= end,
-                _keyword_filter(keyword),
+                keyword_filter(keyword),
             )
         )
     ).scalar_one()

@@ -7,7 +7,8 @@ For each transaction, produce:
   (e.g. "200k", "2 triệu", "25000") — copy it verbatim, do not normalize it yourself
 - description: a short description of what was bought/received
 - log_type: "expense" or "income"
-- suggested_category: your best-guess category name in Vietnamese (e.g. "Ăn uống", "Đi lại")
+- suggested_category: the best-fitting category from the user's category list given \
+  below, spelled exactly as listed; "Khác" if none fits
 - occurred_at: an ISO date (YYYY-MM-DD), resolved against the "today" date given below \
   (e.g. "hôm qua" = yesterday, no date mentioned = today)
 
@@ -22,5 +23,9 @@ Respond only with JSON matching this shape:
 "unparsed_notes": [str]}"""
 
 
-def build_parse_user_message(user_query: str, today_iso: str) -> str:
-    return f"Today's date: {today_iso}\n\nMessage: {user_query}"
+def build_parse_user_message(user_query: str, today_iso: str, categories: list[str]) -> str:
+    return (
+        f"Today's date: {today_iso}\n"
+        f"User's categories: {', '.join(categories)}\n\n"
+        f"Message: {user_query}"
+    )
