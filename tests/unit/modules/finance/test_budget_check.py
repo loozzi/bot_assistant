@@ -72,27 +72,25 @@ async def test_budget_check_node_warns_near_threshold(db_session):
     db_session.add(FinanceBudget(user_id=user_pk, category_id=category.id, amount=1_000_000))
     await db_session.commit()
 
-    await create_transactions(
-        db_session,
-        user_pk,
-        [
-            {
-                "amount_vnd": 850_000,
-                "raw_amount_text": "850k",
-                "description": "Ăn tuần này",
-                "log_type": "expense",
-                "suggested_category": "Ăn uống",
-                "occurred_at": today_ict().isoformat(),
-                "amount_adjusted": False,
-            }
-        ],
-    )
+    txns = [
+        {
+            "amount_vnd": 850_000,
+            "raw_amount_text": "850k",
+            "description": "Ăn tuần này",
+            "log_type": "expense",
+            "suggested_category": "Ăn uống",
+            "occurred_at": today_ict().isoformat(),
+            "amount_adjusted": False,
+        }
+    ]
+    await create_transactions(db_session, user_pk, txns)
     await db_session.commit()
 
     result = await log_budget_check_node(
         {
             "user_pk": user_pk,
             "session": db_session,
+            "parsed_transactions": txns,
             "persisted_categories": ["Ăn uống"],
         }
     )
@@ -105,25 +103,27 @@ async def test_budget_check_node_silent_without_budget(db_session):
     user_pk = await get_or_create_user_pk(db_session, "13")
     await seed_default_categories(db_session, user_pk)
 
-    await create_transactions(
-        db_session,
-        user_pk,
-        [
-            {
-                "amount_vnd": 850_000,
-                "raw_amount_text": "850k",
-                "description": "Ăn tuần này",
-                "log_type": "expense",
-                "suggested_category": "Ăn uống",
-                "occurred_at": today_ict().isoformat(),
-                "amount_adjusted": False,
-            }
-        ],
-    )
+    txns = [
+        {
+            "amount_vnd": 850_000,
+            "raw_amount_text": "850k",
+            "description": "Ăn tuần này",
+            "log_type": "expense",
+            "suggested_category": "Ăn uống",
+            "occurred_at": today_ict().isoformat(),
+            "amount_adjusted": False,
+        }
+    ]
+    await create_transactions(db_session, user_pk, txns)
     await db_session.commit()
 
     result = await log_budget_check_node(
-        {"user_pk": user_pk, "session": db_session, "persisted_categories": ["Ăn uống"]}
+        {
+            "user_pk": user_pk,
+            "session": db_session,
+            "parsed_transactions": txns,
+            "persisted_categories": ["Ăn uống"],
+        }
     )
     assert result["budget_warnings"] == []
 
@@ -140,36 +140,34 @@ async def test_budget_check_overall_only_labels_as_tong_chi_tieu_with_overall_to
     db_session.add(FinanceBudget(user_id=user_pk, category_id=None, amount=500_000))
     await db_session.commit()
 
-    await create_transactions(
-        db_session,
-        user_pk,
-        [
-            {
-                "amount_vnd": 850_000,
-                "raw_amount_text": "850k",
-                "description": "Ăn tuần này",
-                "log_type": "expense",
-                "suggested_category": "Ăn uống",
-                "occurred_at": today_ict().isoformat(),
-                "amount_adjusted": False,
-            },
-            {
-                "amount_vnd": 200_000,
-                "raw_amount_text": "200k",
-                "description": "Xe ôm tuần này",
-                "log_type": "expense",
-                "suggested_category": "Đi lại",
-                "occurred_at": today_ict().isoformat(),
-                "amount_adjusted": False,
-            },
-        ],
-    )
+    txns = [
+        {
+            "amount_vnd": 850_000,
+            "raw_amount_text": "850k",
+            "description": "Ăn tuần này",
+            "log_type": "expense",
+            "suggested_category": "Ăn uống",
+            "occurred_at": today_ict().isoformat(),
+            "amount_adjusted": False,
+        },
+        {
+            "amount_vnd": 200_000,
+            "raw_amount_text": "200k",
+            "description": "Xe ôm tuần này",
+            "log_type": "expense",
+            "suggested_category": "Đi lại",
+            "occurred_at": today_ict().isoformat(),
+            "amount_adjusted": False,
+        },
+    ]
+    await create_transactions(db_session, user_pk, txns)
     await db_session.commit()
 
     result = await log_budget_check_node(
         {
             "user_pk": user_pk,
             "session": db_session,
+            "parsed_transactions": txns,
             "persisted_categories": ["Ăn uống", "Đi lại"],
         }
     )
@@ -197,27 +195,25 @@ async def test_budget_check_overall_and_unbudgeted_category_no_mislabeled_warnin
     db_session.add(FinanceBudget(user_id=user_pk, category_id=None, amount=10_000_000))
     await db_session.commit()
 
-    await create_transactions(
-        db_session,
-        user_pk,
-        [
-            {
-                "amount_vnd": 850_000,
-                "raw_amount_text": "850k",
-                "description": "Ăn tuần này",
-                "log_type": "expense",
-                "suggested_category": "Ăn uống",
-                "occurred_at": today_ict().isoformat(),
-                "amount_adjusted": False,
-            }
-        ],
-    )
+    txns = [
+        {
+            "amount_vnd": 850_000,
+            "raw_amount_text": "850k",
+            "description": "Ăn tuần này",
+            "log_type": "expense",
+            "suggested_category": "Ăn uống",
+            "occurred_at": today_ict().isoformat(),
+            "amount_adjusted": False,
+        }
+    ]
+    await create_transactions(db_session, user_pk, txns)
     await db_session.commit()
 
     result = await log_budget_check_node(
         {
             "user_pk": user_pk,
             "session": db_session,
+            "parsed_transactions": txns,
             "persisted_categories": ["Ăn uống"],
         }
     )
@@ -228,3 +224,78 @@ async def test_budget_check_overall_and_unbudgeted_category_no_mislabeled_warnin
     for warning in result["budget_warnings"]:
         assert "Ăn uống" not in warning
     assert result["budget_warnings"] == []
+
+
+def _today_txn(amount, category="Ăn uống", log_type="expense"):
+    return {
+        "amount_vnd": amount,
+        "raw_amount_text": f"{amount // 1000}k",
+        "description": "Giao dịch",
+        "log_type": log_type,
+        "suggested_category": category,
+        "occurred_at": today_ict().isoformat(),
+        "amount_adjusted": False,
+    }
+
+
+async def _log_and_check(db_session, user_pk, txns):
+    await create_transactions(db_session, user_pk, txns)
+    await db_session.commit()
+    result = await log_budget_check_node(
+        {
+            "user_pk": user_pk,
+            "session": db_session,
+            "parsed_transactions": txns,
+            "persisted_categories": [t["suggested_category"] for t in txns],
+        }
+    )
+    return result["budget_warnings"]
+
+
+@pytest.mark.asyncio
+async def test_budget_warning_only_on_threshold_crossing(db_session):
+    """Once a budget is already in "warn", further spend that stays in "warn"
+    must not repeat the warning; crossing into "over" warns again, once."""
+    user_pk = await get_or_create_user_pk(db_session, "17")
+    await seed_default_categories(db_session, user_pk)
+    category = await find_category_by_name(db_session, user_pk, "Ăn uống")
+    db_session.add(FinanceBudget(user_id=user_pk, category_id=category.id, amount=1_000_000))
+    await db_session.commit()
+
+    assert len(await _log_and_check(db_session, user_pk, [_today_txn(850_000)])) == 1
+    assert await _log_and_check(db_session, user_pk, [_today_txn(50_000)]) == []
+
+    over = await _log_and_check(db_session, user_pk, [_today_txn(200_000)])
+    assert len(over) == 1
+    assert "vượt" in over[0]
+
+    assert await _log_and_check(db_session, user_pk, [_today_txn(10_000)]) == []
+
+
+@pytest.mark.asyncio
+async def test_overall_budget_warning_only_on_threshold_crossing(db_session):
+    user_pk = await get_or_create_user_pk(db_session, "18")
+    await seed_default_categories(db_session, user_pk)
+    db_session.add(FinanceBudget(user_id=user_pk, category_id=None, amount=1_000_000))
+    await db_session.commit()
+
+    assert len(await _log_and_check(db_session, user_pk, [_today_txn(900_000)])) == 1
+    assert await _log_and_check(db_session, user_pk, [_today_txn(20_000, category="Đi lại")]) == []
+
+
+@pytest.mark.asyncio
+async def test_income_does_not_trigger_budget_warnings(db_session):
+    user_pk = await get_or_create_user_pk(db_session, "19")
+    await seed_default_categories(db_session, user_pk)
+    category = await find_category_by_name(db_session, user_pk, "Khác")
+    db_session.add(FinanceBudget(user_id=user_pk, category_id=category.id, amount=100_000))
+    db_session.add(FinanceBudget(user_id=user_pk, category_id=None, amount=100_000))
+    await db_session.commit()
+
+    # Push both budgets over before the income arrives; then log income in
+    # the same budgeted category — no warning should name it again.
+    await _log_and_check(db_session, user_pk, [_today_txn(150_000, category="Khác")])
+    warnings = await _log_and_check(
+        db_session, user_pk, [_today_txn(5_000_000, category="Khác", log_type="income")]
+    )
+    assert warnings == []

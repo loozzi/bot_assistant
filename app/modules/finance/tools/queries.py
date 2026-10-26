@@ -5,13 +5,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import FinanceCategory, FinanceLog
 
+_UNCATEGORIZED = "Khác"
 
-async def total_spend(
-    session: AsyncSession, user_pk: int, start: date, end: date, category_id: int | None
+
+def _keyword_filter(keyword: str):
+    """Case-insensitive substring match that treats LIKE wildcards literally."""
+    escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return FinanceLog.description.ilike(f"%{escaped}%", escape="\\")
+
+
+async def _sum_logs(
+    session: AsyncSession,
+    user_pk: int,
+    log_type: str,
+    start: date,
+    end: date,
+    category_id: int | None = None,
 ) -> int:
     conditions = [
         FinanceLog.user_id == user_pk,
-        FinanceLog.log_type == "expense",
+        FinanceLog.log_type == log_type,
         FinanceLog.occurred_at >= start,
         FinanceLog.occurred_at <= end,
     ]
@@ -24,19 +37,36 @@ async def total_spend(
     return int(total)
 
 
+async def total_spend(
+    session: AsyncSession, user_pk: int, start: date, end: date, category_id: int | None
+) -> int:
+    return await _sum_logs(session, user_pk, "expense", start, end, category_id)
+
+
+async def total_income(
+    session: AsyncSession, user_pk: int, start: date, end: date, category_id: int | None = None
+) -> int:
+    return await _sum_logs(session, user_pk, "income", start, end, category_id)
+
+
 async def spend_by_category(
     session: AsyncSession, user_pk: int, start: date, end: date
 ) -> list[dict]:
+    """Expense breakdown by category. Logs whose category was deleted
+    (category_id SET NULL) are grouped under "Khác" so the rows always sum
+    to total_spend for the same period."""
+    category_name = func.coalesce(FinanceCategory.name, _UNCATEGORIZED)
     rows = await session.execute(
-        select(FinanceCategory.name, func.coalesce(func.sum(FinanceLog.amount), 0))
-        .join(FinanceLog, FinanceLog.category_id == FinanceCategory.id)
+        select(category_name, func.sum(FinanceLog.amount))
+        .select_from(FinanceLog)
+        .outerjoin(FinanceCategory, FinanceLog.category_id == FinanceCategory.id)
         .where(
             FinanceLog.user_id == user_pk,
             FinanceLog.log_type == "expense",
             FinanceLog.occurred_at >= start,
             FinanceLog.occurred_at <= end,
         )
-        .group_by(FinanceCategory.name)
+        .group_by(category_name)
         .order_by(func.sum(FinanceLog.amount).desc())
     )
     return [{"category": name, "total": int(total)} for name, total in rows.all()]
@@ -52,7 +82,7 @@ async def search_transactions(
             FinanceLog.log_type == "expense",
             FinanceLog.occurred_at >= start,
             FinanceLog.occurred_at <= end,
-            FinanceLog.description.ilike(f"%{keyword}%"),
+            _keyword_filter(keyword),
         )
         .order_by(FinanceLog.occurred_at.desc())
         .limit(limit)
@@ -76,7 +106,7 @@ async def search_total(session: AsyncSession, user_pk: int, keyword: str, start:
                 FinanceLog.log_type == "expense",
                 FinanceLog.occurred_at >= start,
                 FinanceLog.occurred_at <= end,
-                FinanceLog.description.ilike(f"%{keyword}%"),
+                _keyword_filter(keyword),
             )
         )
     ).scalar_one()

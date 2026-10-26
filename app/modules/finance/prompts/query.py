@@ -3,7 +3,9 @@ past spending/income. Resolve relative periods (e.g. "tháng này", "this month"
 against the "today" date given below into explicit period_start/period_end ISO dates.
 
 metric must be one of:
-- "total": how much was spent/earned in the period (optionally filtered by category)
+- "total": how much was spent in the period (optionally filtered by category)
+- "income": how much was earned/received in the period (lương, thu nhập, được trả...)
+- "net": income minus spending in the period (còn dư, tiết kiệm được, lời/lỗ bao nhiêu)
 - "by_category": breakdown of spending by category in the period
 - "search": look up transactions matching a keyword (e.g. "how much did I spend on trà sữa")
 
@@ -11,7 +13,7 @@ Set category to the Vietnamese category name if the user names one, else null.
 Set keyword to the search term if metric is "search", else null.
 
 Respond only with JSON matching:
-{"metric": "total"|"by_category"|"search", "period_start": "YYYY-MM-DD", \
+{"metric": "total"|"income"|"net"|"by_category"|"search", "period_start": "YYYY-MM-DD", \
 "period_end": "YYYY-MM-DD", "category": str|null, "keyword": str|null}"""
 
 

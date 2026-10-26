@@ -1,7 +1,13 @@
 from datetime import date
 
 from ...tools.categories import find_category_by_name
-from ...tools.queries import search_total, search_transactions, spend_by_category, total_spend
+from ...tools.queries import (
+    search_total,
+    search_transactions,
+    spend_by_category,
+    total_income,
+    total_spend,
+)
 
 _FALLBACK_REPLY = "Mình chưa hiểu câu hỏi này, bạn thử hỏi lại rõ hơn nhé."
 
@@ -31,6 +37,19 @@ async def query_run_node(state: dict) -> dict:
         label = f" cho {params['category']}" if params.get("category") else ""
         return {"reply": f"Bạn đã chi {_format_vnd(total)}{label} trong khoảng thời gian này."}
 
+    if params["metric"] == "income":
+        income = await total_income(session, user_pk, start, end)
+        return {"reply": f"Bạn đã thu {_format_vnd(income)} trong khoảng thời gian này."}
+
+    if params["metric"] == "net":
+        income = await total_income(session, user_pk, start, end)
+        spend = await total_spend(session, user_pk, start, end, None)
+        net = income - spend
+        verdict = f"còn dư {_format_vnd(net)}" if net >= 0 else f"chi vượt thu {_format_vnd(-net)}"
+        return {
+            "reply": f"Thu {_format_vnd(income)}, chi {_format_vnd(spend)} — {verdict} trong khoảng thời gian này."
+        }
+
     if params["metric"] == "by_category":
         breakdown = await spend_by_category(session, user_pk, start, end)
         if not breakdown:
@@ -39,7 +58,9 @@ async def query_run_node(state: dict) -> dict:
         return {"reply": "Chi tiêu theo danh mục:\n" + "\n".join(lines)}
 
     if params["metric"] == "search":
-        keyword = params.get("keyword") or ""
+        keyword = (params.get("keyword") or "").strip()
+        if not keyword:
+            return {"reply": "Bạn muốn tìm giao dịch theo từ khóa nào?"}
         results = await search_transactions(session, user_pk, keyword, start, end)
         if not results:
             return {"reply": f"Không tìm thấy giao dịch nào khớp với '{keyword}'."}

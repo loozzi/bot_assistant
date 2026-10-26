@@ -243,3 +243,56 @@ async def test_run_query_node_search_excludes_transactions_outside_period(db_ses
     # total must be 45.000, not 545.000 (which would include the out-of-period txn)
     assert "545.000" not in reply
     assert "500.000" not in reply
+
+
+async def _seed_income_and_expense(db_session, telegram_id):
+    user_pk = await get_or_create_user_pk(db_session, telegram_id)
+    base = {"raw_amount_text": "x", "occurred_at": "2026-08-03", "amount_adjusted": False}
+    await create_transactions(
+        db_session,
+        user_pk,
+        [
+            {**base, "amount_vnd": 10_000_000, "description": "Lương", "log_type": "income", "suggested_category": "Khác"},
+            {**base, "amount_vnd": 3_000_000, "description": "Tiền nhà", "log_type": "expense", "suggested_category": "Nhà cửa"},
+        ],
+    )
+    await db_session.commit()
+    return user_pk
+
+
+def _params(metric, keyword=None):
+    return {
+        "metric": metric,
+        "period_start": "2026-08-01",
+        "period_end": "2026-08-31",
+        "category": None,
+        "keyword": keyword,
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_query_node_income(db_session):
+    user_pk = await _seed_income_and_expense(db_session, "35")
+    result = await query_run_node({"session": db_session, "user_pk": user_pk, "query_params": _params("income")})
+    assert "10.000.000đ" in result["reply"]
+    assert "3.000.000" not in result["reply"]
+
+
+@pytest.mark.asyncio
+async def test_run_query_node_net(db_session):
+    user_pk = await _seed_income_and_expense(db_session, "36")
+    result = await query_run_node({"session": db_session, "user_pk": user_pk, "query_params": _params("net")})
+    reply = result["reply"]
+    assert "10.000.000đ" in reply
+    assert "3.000.000đ" in reply
+    assert "7.000.000đ" in reply
+
+
+@pytest.mark.asyncio
+async def test_run_query_node_search_blank_keyword_asks_for_one(db_session):
+    user_pk = await _seed_income_and_expense(db_session, "37")
+    result = await query_run_node(
+        {"session": db_session, "user_pk": user_pk, "query_params": _params("search", keyword="  ")}
+    )
+    assert "Tiền nhà" not in result["reply"]
+    assert "từ khóa" in result["reply"]

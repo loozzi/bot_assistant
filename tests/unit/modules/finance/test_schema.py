@@ -45,3 +45,9 @@ def test_parse_result_holds_multiple_transactions():
 def test_query_params_requires_period():
     with pytest.raises(ValidationError):
         QueryParams(metric="total")
+
+
+def test_query_params_accepts_income_and_net():
+    for metric in ("income", "net"):
+        params = QueryParams(metric=metric, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31))
+        assert params.metric == metric

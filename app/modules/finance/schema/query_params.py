@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 
 class QueryParams(BaseModel):
-    metric: Literal["total", "by_category", "search"]
+    metric: Literal["total", "income", "net", "by_category", "search"]
     period_start: date
     period_end: date
     category: str | None = None
